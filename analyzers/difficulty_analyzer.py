@@ -8,7 +8,7 @@ import numpy as np
 import os
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from scipy.stats import pearsonr, spearmanr
 
 
@@ -111,7 +111,8 @@ class DifficultyAnalyzer:
                     valid_data[metric], 
                     valid_data['resolution_rate']
                 )
-            except:
+            except Exception as e:
+                self.logger.debug(f"Error calculating Pearson correlation for {metric}: {e}")
                 pearson_corr, pearson_pval = np.nan, np.nan
             
             # Calculate Spearman correlation (rank-based, more robust)
@@ -120,7 +121,8 @@ class DifficultyAnalyzer:
                     valid_data[metric], 
                     valid_data['resolution_rate']
                 )
-            except:
+            except Exception as e:
+                self.logger.debug(f"Error calculating Spearman correlation for {metric}: {e}")
                 spearman_corr, spearman_pval = np.nan, np.nan
             
             correlations.append({
@@ -217,7 +219,7 @@ class DifficultyAnalyzer:
         self.logger.info(f"Identified {len(predictors)} top predictors")
         return predictors
     
-    def answer_rq1(self, correlation_df: pd.DataFrame) -> Dict[str, any]:
+    def answer_rq1(self, correlation_df: pd.DataFrame) -> Dict[str, Any]:
         """
         Answer RQ1: Which graph representation best predicts LLM repair difficulty?
         
@@ -250,7 +252,7 @@ class DifficultyAnalyzer:
         self.logger.info(f"RQ1: Best predictor is {best['metric']} (ρ={best['spearman_correlation']:.3f})")
         return rq1_results
     
-    def answer_rq2(self, correlation_df: pd.DataFrame) -> Dict[str, any]:
+    def answer_rq2(self, correlation_df: pd.DataFrame) -> Dict[str, Any]:
         """
         Answer RQ2: Does semantic complexity (DFG/PDG) outperform syntactic complexity (AST/LOC)?
         

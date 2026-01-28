@@ -249,8 +249,8 @@ If you use this tool in your research, please cite:
 ```bibtex
 @software{benchmark_difficulty_analyzer,
   title = {Benchmark Difficulty Analyzer},
-  author = {Your Name},
-  year = {2024},
+  author = {Contributors},
+  year = {2026},
   url = {https://github.com/kaileekiki/benchmark-difficulty-analyzer}
 }
 ```

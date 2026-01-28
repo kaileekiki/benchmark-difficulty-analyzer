@@ -453,7 +453,7 @@ print(f"Accuracy: {scores.mean():.2f} ± {scores.std():.2f}")
 ## Additional Resources
 
 - **SWE-bench Website**: https://www.swebench.com
-- **Paper**: [SWE-bench: Can Language Models Resolve Real-World GitHub Issues?](https://arxiv.org/)
+- **SWE-bench Paper**: [SWE-bench: Can Language Models Resolve Real-World GitHub Issues?](https://www.swebench.com) (Visit website for latest publications)
 - **Issues**: https://github.com/kaileekiki/benchmark-difficulty-analyzer/issues
 
 ---

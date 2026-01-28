@@ -131,7 +131,7 @@ class SWEBenchCrawler(BaseCrawler):
                 return (score / self.total_bugs) * 100
             
             return score
-        except:
+        except (ValueError, AttributeError):
             return None
     
     def _manual_leaderboard_input(self) -> List[Dict[str, Any]]:
@@ -182,22 +182,33 @@ class SWEBenchCrawler(BaseCrawler):
         """
         Generate synthetic bug results for demonstration.
         
+        Note: This generates synthetic data for demonstration purposes only.
+        In production, replace this with actual bug-level result fetching.
+        
         Args:
             model_id: Model identifier
             
         Returns:
             Dictionary mapping bug IDs to resolution status
         """
+        import hashlib
+        
         # This is a placeholder - real implementation would fetch actual data
         bug_results = {}
+        
+        # Use hash of model_id to generate varied but consistent results per model
+        model_hash = int(hashlib.md5(model_id.encode()).hexdigest(), 16)
         
         # Generate results for all bugs
         for i in range(1, self.total_bugs + 1):
             bug_id = f"bug_{i:04d}"
-            # Simple heuristic: harder bugs have higher IDs
+            # Use combination of model hash and bug ID for pseudo-random but consistent results
+            seed = (model_hash + i) % 100
+            # Simple heuristic: harder bugs have higher IDs, models vary in capability
             difficulty = i / self.total_bugs
-            # Models are less likely to solve harder bugs
-            resolved = difficulty < 0.5  # Placeholder logic
+            model_strength = (model_hash % 50) / 100.0  # 0-0.5 range based on model
+            # Resolve if model strength + some randomness exceeds difficulty
+            resolved = (model_strength + (seed / 200.0)) > difficulty
             bug_results[bug_id] = resolved
         
         return bug_results

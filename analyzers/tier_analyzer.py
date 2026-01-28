@@ -47,7 +47,7 @@ class TierAnalyzer:
         # Assign tier based on score
         def get_tier(score):
             for i, (min_score, max_score) in enumerate(self.tier_ranges):
-                if min_score <= score < max_score:
+                if min_score <= score <= max_score:
                     return f"Tier_{i+1}_{min_score}-{max_score}%"
             return "Tier_Other"
         

@@ -84,7 +84,9 @@ class BugResolverAnalyzer:
         self.bug_data = pd.DataFrame(rows)
         self.logger.info(f"Created bug data with {len(self.bug_data)} records")
         
-        # Save the bug data
+        # Save the bug data (no timestamp - this is the current dataset for analysis)
+        # Other save_analysis() calls use timestamps for historical tracking,
+        # but bug_data.csv is the working dataset that should be overwritten
         bug_data_path = os.path.join(self.data_dir, 'bug_data.csv')
         self.bug_data.to_csv(bug_data_path, index=False)
         
