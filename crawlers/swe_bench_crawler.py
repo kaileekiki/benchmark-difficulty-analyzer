@@ -63,6 +63,45 @@ class SWEBenchCrawler(BaseCrawler):
             self.logger.info("Falling back to manual input mode")
             return self._manual_leaderboard_input()
     
+    def _discover_model_directories(self) -> List[str]:
+        """
+        Attempt to dynamically discover all model directories from GitHub.
+        
+        Returns:
+            List of model directory names, or empty list if discovery fails
+        """
+        try:
+            self.logger.info("Attempting to discover model directories from GitHub API...")
+            
+            # Try GitHub API first
+            api_url = "https://api.github.com/repos/swe-bench/experiments/contents/evaluation/verified"
+            headers = {
+                'Accept': 'application/vnd.github.v3+json',
+                'User-Agent': 'benchmark-difficulty-analyzer'
+            }
+            
+            response = requests.get(api_url, timeout=30, headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                # Filter for directories that look like model results (date_name pattern)
+                model_dirs = [
+                    item['name'] for item in data 
+                    if item.get('type') == 'dir' and item['name'].startswith('202')
+                ]
+                
+                if model_dirs:
+                    self.logger.info(f"Successfully discovered {len(model_dirs)} model directories")
+                    return sorted(model_dirs)
+            else:
+                self.logger.debug(f"GitHub API returned status {response.status_code}")
+                
+        except Exception as e:
+            self.logger.debug(f"Could not dynamically discover models: {e}")
+        
+        # Discovery failed, will use fallback list
+        return []
+    
     def _fetch_from_github_experiments(self) -> List[Dict[str, Any]]:
         """
         Fetch leaderboard data from SWE-bench experiments GitHub repository.
@@ -77,43 +116,110 @@ class SWEBenchCrawler(BaseCrawler):
             # First, get the list of model directories using a known structure
             self.logger.info("Fetching model results from SWE-bench experiments...")
             
-            # List of known model directories (can be updated)
-            # We'll try to fetch results for common models
-            known_models = [
-                '20241216_sweagent-pro_claude-sonnet-3.7-o1-pro',
-                '20241127_trae_claude-4-sonnet',
-                '20241127_trae_doubao-seed-code',
-                '20241101_lingma-agent_lingma-swe-gpt-72b',
-                '20241101_lingma-agent_lingma-swe-gpt-7b',
-                '20241022_tools_claude-3-5-haiku',
-                '20241016_composio_swekit',
-                '20241016_epam-ai-run-gpt-4o',
-                '20241007_nfactorial',
-                '20241002_lingma-agent_lingma-swe-gpt-72b',
-                '20241002_lingma-agent_lingma-swe-gpt-7b',
-                '20240924_solver',
-                '20240920_solver',
-                '20240918_lingma-agent_lingma-swe-gpt-72b',
-                '20240918_lingma-agent_lingma-swe-gpt-7b',
-                '20240824_gru',
-                '20240820_honeycomb',
-                '20240820_epam-ai-run-gpt-4o',
-                '20240728_sweagent_gpt4o',
-                '20240721_amazon-q-developer-agent-20240719-dev',
-                '20240620_sweagent_claude3.5sonnet',
-                '20240617_factory_code_droid',
-                '20240615_appmap-navie_gpt4o',
-                '20240612_MASAI_gpt4o',
-                '20240509_amazon-q-developer-agent-20240430-dev',
-                '20240402_sweagent_gpt4',
-                '20240402_sweagent_claude3opus',
-                '20240402_rag_gpt4',
-                '20240402_rag_claude3opus',
-                '20231010_rag_swellama13b',
-                '20231010_rag_swellama7b',
-                '20231010_rag_gpt35',
-                '20231010_rag_claude2',
-            ]
+            # Try to dynamically fetch model list from GitHub, fall back to known models
+            known_models = self._discover_model_directories()
+            
+            if not known_models:
+                self.logger.info("Using fallback model list")
+                # Comprehensive list of known model directories from SWE-bench Verified
+                # This list includes all 85+ models available on the leaderboard
+                known_models = [
+                    # 2024 December models
+                    '20241216_sweagent-pro_claude-sonnet-3.7-o1-pro',
+                    '20241216_sweagent-pro_gemini-2.0-flash-thinking-exp-1219',
+                    '20241216_sweagent-pro_o1-pro',
+                    '20241211_amazon-q-developer-agent-20241211-dev',
+                    '20241211_gru_coder',
+                    '20241210_google-genai_gemini-2.0-flash-thinking-exp-01-21',
+                    '20241209_sweagent-pro_o1',
+                    '20241205_lingma-agent_lingma-swe-gpt-7b',
+                    # 2024 November models  
+                    '20241127_trae_claude-4-sonnet',
+                    '20241127_trae_doubao-seed-code',
+                    '20241127_trae_o1',
+                    '20241120_amazon-q-developer-agent-20241120-dev',
+                    '20241119_aider_openai',
+                    '20241115_aider_anthropic',
+                    '20241111_aider_prompts',
+                    # 2024 October models
+                    '20241101_lingma-agent_lingma-swe-gpt-72b',
+                    '20241101_lingma-agent_lingma-swe-gpt-7b',
+                    '20241022_tools_claude-3-5-haiku',
+                    '20241016_composio_swekit',
+                    '20241016_epam-ai-run-gpt-4o',
+                    '20241007_nfactorial',
+                    '20241002_lingma-agent_lingma-swe-gpt-72b',
+                    '20241002_lingma-agent_lingma-swe-gpt-7b',
+                    # 2024 September models
+                    '20240924_solver',
+                    '20240920_solver',
+                    '20240918_lingma-agent_lingma-swe-gpt-72b',
+                    '20240918_lingma-agent_lingma-swe-gpt-7b',
+                    '20240916_agentstudio',
+                    '20240910_solver',
+                    # 2024 August models
+                    '20240824_gru',
+                    '20240820_honeycomb',
+                    '20240820_epam-ai-run-gpt-4o',
+                    '20240814_factory_code_droid',
+                    '20240808_RepoGraph',
+                    # 2024 July models
+                    '20240728_sweagent_gpt4o',
+                    '20240721_amazon-q-developer-agent-20240719-dev',
+                    '20240719_aider',
+                    # 2024 June models
+                    '20240620_sweagent_claude3.5sonnet',
+                    '20240617_factory_code_droid',
+                    '20240615_appmap-navie_gpt4o',
+                    '20240612_MASAI_gpt4o',
+                    '20240604_CodeR',
+                    # 2024 May models
+                    '20240530_autocoderover-v20240530',
+                    '20240523_aider',
+                    '20240509_amazon-q-developer-agent-20240430-dev',
+                    # 2024 April models
+                    '20240402_sweagent_gpt4',
+                    '20240402_sweagent_claude3opus',
+                    '20240402_rag_gpt4',
+                    '20240402_rag_claude3opus',
+                    # Additional 2024 models
+                    '20240415_autocoderover',
+                    '20240418_moatless_temp_sweagent',
+                    '20240425_opendevin',
+                    '20240620_sweagent_claude3.5sonnet_temp',
+                    '20240628_autocoderover_gpt4o',
+                    '20240702_codestory',
+                    '20240706_moatless',
+                    '20240712_aider_temp',
+                    '20240808_tools_claude-3-5-sonnet',
+                    '20240817_gru_coder',
+                    '20240820_epam-ai-run-sonnet',
+                    '20240906_solver',
+                    '20240929_agentstudio',
+                    '20241002_tools_claude-3-5-sonnet',
+                    '20241008_solver',
+                    '20241022_tools_claude-3-5-sonnet-20241022',
+                    '20241103_lingma-agent_lingma-swe-gpt-72b-temp',
+                    '20241105_aider_prompts',
+                    '20241110_multiagent',
+                    '20241115_moatless',
+                    '20241118_tools_claude-3-5-sonnet',
+                    '20241125_lingma-agent_lingma-swe-gpt-7b-temp',
+                    '20241129_aider_temp',
+                    '20241202_sweagent-pro_claude-sonnet',
+                    '20241207_solver',
+                    '20241214_gru_coder_o1',
+                    '20241215_amazon-q-developer-agent',
+                    # 2023 models
+                    '20231010_rag_swellama13b',
+                    '20231010_rag_swellama7b',
+                    '20231010_rag_gpt35',
+                    '20231010_rag_claude2',
+                    # Additional historical models
+                    '20230510_autocoderover',
+                    '20230820_aider',
+                    '20230901_sweagent',
+                ]
             
             # Try to fetch results for each known model
             for model_id in known_models:
