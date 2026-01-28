@@ -1,0 +1,37 @@
+benchmarks:
+  swe_bench_verified:
+    name: "SWE-bench Verified"
+    url: "https://www.swebench.com"
+    leaderboard_url: "https://www.swebench.com/verified.html"
+    total_bugs: 500
+    api_endpoint: null
+    
+  swe_bench_lite:
+    name: "SWE-bench Lite"
+    url: "https://www.swebench.com"
+    leaderboard_url: "https://www.swebench.com/lite.html"
+    total_bugs: 300
+    api_endpoint: null
+
+performance_tiers:
+  ranges:
+    - [95, 100]
+    - [90, 95]
+    - [85, 90]
+    - [80, 85]
+    - [75, 80]
+    - [70, 75]
+    - [65, 70]
+    - [60, 65]
+    - [55, 60]
+    - [50, 55]
+    - [45, 50]
+    - [40, 45]
+    - [35, 40]
+    - [30, 35]
+    - [25, 30]
+    - [20, 25]
+    - [15, 20]
+    - [10, 15]
+    - [5, 10]
+    - [0, 5]
