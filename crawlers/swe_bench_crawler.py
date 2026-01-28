@@ -47,7 +47,10 @@ class SWEBenchCrawler(BaseCrawler):
             
             if not leaderboard_data:
                 self.logger.warning("No data fetched from GitHub, falling back to manual input")
-                return self._manual_leaderboard_input()
+                leaderboard_data = self._manual_leaderboard_input()
+            else:
+                # Collect all bug IDs from the fetched data
+                self._collect_all_bug_ids(leaderboard_data)
             
             # Cache the leaderboard data for bug results extraction
             self._cached_leaderboard = leaderboard_data
@@ -70,29 +73,58 @@ class SWEBenchCrawler(BaseCrawler):
         leaderboard_data = []
         
         try:
-            # Fetch directory listing of verified evaluation results
-            url = f"{self.experiments_repo}/contents/evaluation/verified"
-            self.logger.info(f"Fetching model directories from {url}")
+            # Try to fetch directly from raw.githubusercontent.com to avoid API rate limits
+            # First, get the list of model directories using a known structure
+            self.logger.info("Fetching model results from SWE-bench experiments...")
             
-            response = requests.get(url, timeout=30)
-            response.raise_for_status()
+            # List of known model directories (can be updated)
+            # We'll try to fetch results for common models
+            known_models = [
+                '20241216_sweagent-pro_claude-sonnet-3.7-o1-pro',
+                '20241127_trae_claude-4-sonnet',
+                '20241127_trae_doubao-seed-code',
+                '20241101_lingma-agent_lingma-swe-gpt-72b',
+                '20241101_lingma-agent_lingma-swe-gpt-7b',
+                '20241022_tools_claude-3-5-haiku',
+                '20241016_composio_swekit',
+                '20241016_epam-ai-run-gpt-4o',
+                '20241007_nfactorial',
+                '20241002_lingma-agent_lingma-swe-gpt-72b',
+                '20241002_lingma-agent_lingma-swe-gpt-7b',
+                '20240924_solver',
+                '20240920_solver',
+                '20240918_lingma-agent_lingma-swe-gpt-72b',
+                '20240918_lingma-agent_lingma-swe-gpt-7b',
+                '20240824_gru',
+                '20240820_honeycomb',
+                '20240820_epam-ai-run-gpt-4o',
+                '20240728_sweagent_gpt4o',
+                '20240721_amazon-q-developer-agent-20240719-dev',
+                '20240620_sweagent_claude3.5sonnet',
+                '20240617_factory_code_droid',
+                '20240615_appmap-navie_gpt4o',
+                '20240612_MASAI_gpt4o',
+                '20240509_amazon-q-developer-agent-20240430-dev',
+                '20240402_sweagent_gpt4',
+                '20240402_sweagent_claude3opus',
+                '20240402_rag_gpt4',
+                '20240402_rag_claude3opus',
+                '20231010_rag_swellama13b',
+                '20231010_rag_swellama7b',
+                '20231010_rag_gpt35',
+                '20231010_rag_claude2',
+            ]
             
-            directories = response.json()
-            
-            # Filter only directories (model results)
-            model_dirs = [d for d in directories if d['type'] == 'dir']
-            self.logger.info(f"Found {len(model_dirs)} model directories")
-            
-            for model_dir in model_dirs:
+            # Try to fetch results for each known model
+            for model_id in known_models:
                 try:
                     # Rate limiting
                     time.sleep(self.rate_limit_delay)
                     
-                    model_name = model_dir['name']
-                    self.logger.info(f"  Processing {model_name}...")
+                    self.logger.debug(f"  Trying to fetch {model_id}...")
                     
                     # Fetch results.json for this model
-                    results_url = f"{self.experiments_raw}/evaluation/verified/{model_name}/results/results.json"
+                    results_url = f"{self.experiments_raw}/evaluation/verified/{model_id}/results/results.json"
                     results_response = requests.get(results_url, timeout=30)
                     
                     if results_response.status_code == 200:
@@ -104,8 +136,8 @@ class SWEBenchCrawler(BaseCrawler):
                         score = (resolved_count / self.total_bugs) * 100
                         
                         leaderboard_data.append({
-                            'model_id': model_name,
-                            'model_name': self._format_model_name(model_name),
+                            'model_id': model_id,
+                            'model_name': self._format_model_name(model_id),
                             'score': score,
                             'resolved_count': resolved_count,
                             'resolved_bugs': resolved_bugs,
@@ -113,17 +145,23 @@ class SWEBenchCrawler(BaseCrawler):
                             'no_logs': results_data.get('no_logs', [])
                         })
                         
-                        self.logger.info(f"    {model_name}: {resolved_count}/{self.total_bugs} ({score:.2f}%)")
+                        self.logger.info(f"    ✓ {model_id}: {resolved_count}/{self.total_bugs} ({score:.2f}%)")
                     else:
-                        self.logger.warning(f"    Could not fetch results for {model_name}")
+                        self.logger.debug(f"    ✗ Could not fetch results for {model_id} (status: {results_response.status_code})")
                         
                 except Exception as e:
-                    self.logger.warning(f"    Error processing {model_name}: {e}")
+                    self.logger.debug(f"    ✗ Error processing {model_id}: {e}")
                     continue
+            
+            # If we got no data, return empty list to trigger fallback
+            if not leaderboard_data:
+                self.logger.warning("Could not fetch any model results from GitHub")
+                return []
             
             # Sort by score descending
             leaderboard_data.sort(key=lambda x: x['score'], reverse=True)
             
+            self.logger.info(f"Successfully fetched results for {len(leaderboard_data)} models")
             return leaderboard_data
             
         except Exception as e:
@@ -425,18 +463,16 @@ class SWEBenchCrawler(BaseCrawler):
         
         # If we have actual data, use it
         if all_attempted:
-            for bug_id in all_attempted:
-                # Format bug_id as bug_XXXX for consistency
-                formatted_id = self._format_bug_id(bug_id)
-                bug_results[formatted_id] = bug_id in resolved_bugs
-            
-            # If we don't have all 500 bugs yet, we need to fill in the rest
-            if len(bug_results) < self.total_bugs:
-                # Add missing bugs as failed (not in resolved list)
-                for i in range(1, self.total_bugs + 1):
-                    bug_id = f"bug_{i:04d}"
-                    if bug_id not in bug_results:
-                        bug_results[bug_id] = False
+            # Use the complete bug list if available
+            if hasattr(self, '_all_bug_ids') and self._all_bug_ids:
+                # We have the complete list of bugs from all models
+                for bug_id in self._all_bug_ids:
+                    bug_results[bug_id] = bug_id in resolved_bugs
+            else:
+                # We only have partial data for this model
+                # This case should not happen if we collect all bugs first
+                for bug_id in all_attempted:
+                    bug_results[bug_id] = bug_id in resolved_bugs
         else:
             # No actual data, generate synthetic results based on model's score
             bug_results = self._generate_synthetic_bug_results(
@@ -445,6 +481,31 @@ class SWEBenchCrawler(BaseCrawler):
             )
         
         return bug_results
+    
+    def _collect_all_bug_ids(self, leaderboard_data: List[Dict[str, Any]]) -> set:
+        """
+        Collect all unique bug IDs from all models.
+        
+        Args:
+            leaderboard_data: List of model performance dictionaries
+            
+        Returns:
+            Set of all bug IDs
+        """
+        all_bugs = set()
+        
+        for model in leaderboard_data:
+            resolved = set(model.get('resolved_bugs', []))
+            no_gen = set(model.get('no_generation', []))
+            no_log = set(model.get('no_logs', []))
+            all_bugs.update(resolved | no_gen | no_log)
+        
+        self.logger.info(f"Collected {len(all_bugs)} unique bug IDs from all models")
+        
+        # Cache for later use
+        self._all_bug_ids = sorted(all_bugs)
+        
+        return all_bugs
     
     def _generate_synthetic_bug_results(self, model_id: str, resolved_count: int) -> Dict[str, bool]:
         """
