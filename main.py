@@ -23,6 +23,7 @@ from analyzers import (
     ModelComparison
 )
 from visualizations import Plotter
+from exporters import DatasetExporter
 
 
 def load_config(config_path: str) -> Dict[str, Any]:
@@ -289,10 +290,22 @@ Examples:
         model_comparison.save_analysis(agreement, 'model_agreement')
         model_comparison.save_analysis(unique_solvers, 'unique_solvers')
         
-        # Step 6: Visualization (if requested)
+        # Step 6: Export Datasets
+        logger.info("\n" + "="*70)
+        logger.info("STEP 6: EXPORTING DATASETS")
+        logger.info("="*70)
+        
+        exporter = DatasetExporter()
+        exported_files = exporter.export_all_datasets(leaderboard_data, bug_data)
+        
+        logger.info("\nExported datasets:")
+        for dataset_name, file_path in exported_files.items():
+            logger.info(f"  {dataset_name}: {file_path}")
+        
+        # Step 7: Visualization (if requested)
         if args.visualize:
             logger.info("\n" + "="*70)
-            logger.info("STEP 6: GENERATING VISUALIZATIONS")
+            logger.info("STEP 7: GENERATING VISUALIZATIONS")
             logger.info("="*70)
             
             plotter = Plotter()
@@ -321,10 +334,10 @@ Examples:
             logger.info(f"\nAll visualizations saved to visualizations/output/")
         else:
             logger.info("\n" + "="*70)
-            logger.info("STEP 6: SKIPPED (use --visualize to generate plots)")
+            logger.info("STEP 7: SKIPPED (use --visualize to generate plots)")
             logger.info("="*70)
         
-        # Step 7: Summary statistics
+        # Step 8: Summary statistics
         logger.info("\n" + "="*70)
         logger.info("SUMMARY STATISTICS")
         logger.info("="*70)
@@ -381,6 +394,9 @@ Examples:
         logger.info("ANALYSIS COMPLETE!")
         logger.info("="*70)
         logger.info(f"Results saved to: data/processed/")
+        logger.info(f"\nExported datasets:")
+        for dataset_name, file_path in exported_files.items():
+            logger.info(f"  - {os.path.basename(file_path)}")
         if args.visualize:
             logger.info(f"Visualizations saved to: visualizations/output/")
         
