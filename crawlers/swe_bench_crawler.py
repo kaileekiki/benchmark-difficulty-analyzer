@@ -84,10 +84,10 @@ class SWEBenchCrawler(BaseCrawler):
             
             if response.status_code == 200:
                 data = response.json()
-                # Filter for directories that look like model results (date_name pattern)
+                # Filter for directories that look like model results (YYYYMMDD_name pattern)
                 model_dirs = [
                     item['name'] for item in data 
-                    if item.get('type') == 'dir' and item['name'].startswith('202')
+                    if item.get('type') == 'dir' and len(item['name']) > 8 and item['name'][:8].isdigit()
                 ]
                 
                 if model_dirs:
@@ -122,7 +122,7 @@ class SWEBenchCrawler(BaseCrawler):
             if not known_models:
                 self.logger.info("Using fallback model list")
                 # Comprehensive list of known model directories from SWE-bench Verified
-                # This list includes all 85+ models available on the leaderboard
+                # This list includes 80+ models available on the leaderboard
                 known_models = [
                     # 2024 December models
                     '20241216_sweagent-pro_claude-sonnet-3.7-o1-pro',
@@ -130,7 +130,6 @@ class SWEBenchCrawler(BaseCrawler):
                     '20241216_sweagent-pro_o1-pro',
                     '20241211_amazon-q-developer-agent-20241211-dev',
                     '20241211_gru_coder',
-                    '20241210_google-genai_gemini-2.0-flash-thinking-exp-01-21',
                     '20241209_sweagent-pro_o1',
                     '20241205_lingma-agent_lingma-swe-gpt-7b',
                     # 2024 November models  
@@ -215,10 +214,6 @@ class SWEBenchCrawler(BaseCrawler):
                     '20231010_rag_swellama7b',
                     '20231010_rag_gpt35',
                     '20231010_rag_claude2',
-                    # Additional historical models
-                    '20230510_autocoderover',
-                    '20230820_aider',
-                    '20230901_sweagent',
                 ]
             
             # Try to fetch results for each known model
