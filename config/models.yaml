@@ -1,0 +1,36 @@
+# Model tracking configuration
+# Example models from SWE-bench verified leaderboard
+
+models:
+  - id: "anthropic_claude_opus"
+    name: "Claude 3 Opus"
+    organization: "Anthropic"
+    type: "LLM"
+    
+  - id: "openai_gpt4"
+    name: "GPT-4"
+    organization: "OpenAI"
+    type: "LLM"
+    
+  - id: "openai_gpt4_turbo"
+    name: "GPT-4 Turbo"
+    organization: "OpenAI"
+    type: "LLM"
+    
+  - id: "google_gemini_pro"
+    name: "Gemini Pro"
+    organization: "Google"
+    type: "LLM"
+    
+  - id: "meta_llama3"
+    name: "Llama 3"
+    organization: "Meta"
+    type: "LLM"
+
+# Model categories for analysis
+categories:
+  - name: "Commercial LLMs"
+    models: ["anthropic_claude_opus", "openai_gpt4", "openai_gpt4_turbo", "google_gemini_pro"]
+  
+  - name: "Open Source LLMs"
+    models: ["meta_llama3"]
