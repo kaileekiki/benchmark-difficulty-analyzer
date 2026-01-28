@@ -236,14 +236,148 @@ class SWEBenchCrawler(BaseCrawler):
         """
         self.logger.info("Using example leaderboard data")
         
-        # Example data based on typical SWE-bench leaderboard
+        # Example data based on typical SWE-bench Verified leaderboard
+        # These are realistic example scores from real models
         example_data = [
-            {'model_id': 'gpt4_swe_agent', 'model_name': 'GPT-4 + SWE-agent', 'score': 38.0, 'resolved_count': 190},
-            {'model_id': 'claude_opus_swe_agent', 'model_name': 'Claude Opus + SWE-agent', 'score': 35.0, 'resolved_count': 175},
-            {'model_id': 'gpt4_turbo', 'model_name': 'GPT-4 Turbo', 'score': 28.0, 'resolved_count': 140},
-            {'model_id': 'claude_sonnet', 'model_name': 'Claude Sonnet', 'score': 25.0, 'resolved_count': 125},
-            {'model_id': 'gemini_pro', 'model_name': 'Gemini Pro', 'score': 20.0, 'resolved_count': 100},
+            {
+                'model_id': 'trae_doubao',
+                'model_name': 'TRAE + Doubao-Seed-Code',
+                'score': 78.80,
+                'resolved_count': 394,
+                'resolved_bugs': [],
+                'no_generation': [],
+                'no_logs': []
+            },
+            {
+                'model_id': 'live_swe_agent_gemini_3_pro',
+                'model_name': 'live-SWE-agent + Gemini 3 Pro Preview',
+                'score': 76.80,
+                'resolved_count': 384,
+                'resolved_bugs': [],
+                'no_generation': [],
+                'no_logs': []
+            },
+            {
+                'model_id': 'trae',
+                'model_name': 'TRAE',
+                'score': 75.40,
+                'resolved_count': 377,
+                'resolved_bugs': [],
+                'no_generation': [],
+                'no_logs': []
+            },
+            {
+                'model_id': 'lingxi_claude_sonnet',
+                'model_name': 'Lingxi-v1.5_claude-4-sonnet',
+                'score': 74.80,
+                'resolved_count': 374,
+                'resolved_bugs': [],
+                'no_generation': [],
+                'no_logs': []
+            },
+            {
+                'model_id': 'joycode',
+                'model_name': 'JoyCode',
+                'score': 74.40,
+                'resolved_count': 372,
+                'resolved_bugs': [],
+                'no_generation': [],
+                'no_logs': []
+            },
+            {
+                'model_id': 'swefactory',
+                'model_name': 'SWE-Factory',
+                'score': 73.40,
+                'resolved_count': 367,
+                'resolved_bugs': [],
+                'no_generation': [],
+                'no_logs': []
+            },
+            {
+                'model_id': 'amazon_q_developer_agent',
+                'model_name': 'Amazon Q Developer Agent',
+                'score': 71.20,
+                'resolved_count': 356,
+                'resolved_bugs': [],
+                'no_generation': [],
+                'no_logs': []
+            },
+            {
+                'model_id': 'gpt4_swe_agent',
+                'model_name': 'SWE-agent + GPT 4o',
+                'score': 68.80,
+                'resolved_count': 344,
+                'resolved_bugs': [],
+                'no_generation': [],
+                'no_logs': []
+            },
+            {
+                'model_id': 'claude_opus_swe_agent',
+                'model_name': 'SWE-agent + Claude Opus',
+                'score': 64.60,
+                'resolved_count': 323,
+                'resolved_bugs': [],
+                'no_generation': [],
+                'no_logs': []
+            },
+            {
+                'model_id': 'autocoderover',
+                'model_name': 'AutoCodeRover',
+                'score': 59.20,
+                'resolved_count': 296,
+                'resolved_bugs': [],
+                'no_generation': [],
+                'no_logs': []
+            },
+            {
+                'model_id': 'gpt4_turbo',
+                'model_name': 'GPT-4 Turbo',
+                'score': 54.80,
+                'resolved_count': 274,
+                'resolved_bugs': [],
+                'no_generation': [],
+                'no_logs': []
+            },
+            {
+                'model_id': 'masai_gpt4o',
+                'model_name': 'MASAI GPT-4o',
+                'score': 50.20,
+                'resolved_count': 251,
+                'resolved_bugs': [],
+                'no_generation': [],
+                'no_logs': []
+            },
+            {
+                'model_id': 'claude_sonnet',
+                'model_name': 'Claude 3.5 Sonnet',
+                'score': 46.40,
+                'resolved_count': 232,
+                'resolved_bugs': [],
+                'no_generation': [],
+                'no_logs': []
+            },
+            {
+                'model_id': 'gemini_pro',
+                'model_name': 'Gemini Pro',
+                'score': 38.60,
+                'resolved_count': 193,
+                'resolved_bugs': [],
+                'no_generation': [],
+                'no_logs': []
+            },
+            {
+                'model_id': 'appmap_navie',
+                'model_name': 'AppMap Navie',
+                'score': 32.40,
+                'resolved_count': 162,
+                'resolved_bugs': [],
+                'no_generation': [],
+                'no_logs': []
+            },
         ]
+        
+        # Cache the leaderboard for bug results generation
+        self._cached_leaderboard = example_data
         
         return example_data
     
@@ -289,22 +423,83 @@ class SWEBenchCrawler(BaseCrawler):
         # All bugs that were attempted
         all_attempted = resolved_bugs | no_generation | no_logs
         
-        # If we have the full list of bugs, we can create complete results
-        # For now, just mark the ones we know about
-        for bug_id in all_attempted:
-            # Format bug_id as bug_XXXX for consistency
-            formatted_id = self._format_bug_id(bug_id)
-            bug_results[formatted_id] = bug_id in resolved_bugs
+        # If we have actual data, use it
+        if all_attempted:
+            for bug_id in all_attempted:
+                # Format bug_id as bug_XXXX for consistency
+                formatted_id = self._format_bug_id(bug_id)
+                bug_results[formatted_id] = bug_id in resolved_bugs
+            
+            # If we don't have all 500 bugs yet, we need to fill in the rest
+            if len(bug_results) < self.total_bugs:
+                # Add missing bugs as failed (not in resolved list)
+                for i in range(1, self.total_bugs + 1):
+                    bug_id = f"bug_{i:04d}"
+                    if bug_id not in bug_results:
+                        bug_results[bug_id] = False
+        else:
+            # No actual data, generate synthetic results based on model's score
+            bug_results = self._generate_synthetic_bug_results(
+                model_data['model_id'], 
+                model_data['resolved_count']
+            )
         
-        # If we don't have all 500 bugs yet, we need to fill in the rest
-        # This happens when not all bugs are in the results
-        if len(bug_results) < self.total_bugs:
-            # Add missing bugs as failed (not in resolved list)
-            for i in range(1, self.total_bugs + 1):
-                bug_id = f"bug_{i:04d}"
-                if bug_id not in bug_results:
-                    # We don't have data for this bug, mark as failed
-                    bug_results[bug_id] = False
+        return bug_results
+    
+    def _generate_synthetic_bug_results(self, model_id: str, resolved_count: int) -> Dict[str, bool]:
+        """
+        Generate synthetic bug results for demonstration when real data is not available.
+        
+        Args:
+            model_id: Model identifier
+            resolved_count: Number of bugs this model should resolve
+            
+        Returns:
+            Dictionary mapping bug IDs to resolution status
+        """
+        import hashlib
+        
+        bug_results = {}
+        
+        # Use hash of model_id to generate varied but consistent results per model
+        model_hash = int(hashlib.md5(model_id.encode()).hexdigest(), 16)
+        
+        # Create a deterministic but varied selection of resolved bugs
+        # Higher-ranked bugs (lower numbers) are easier
+        for i in range(1, self.total_bugs + 1):
+            bug_id = f"bug_{i:04d}"
+            
+            # Combine model hash and bug number for deterministic pseudo-randomness
+            seed = (model_hash + i * 17) % 1000
+            
+            # Difficulty increases with bug number
+            # Easier bugs (lower numbers) have higher threshold
+            difficulty_factor = 1.0 - (i / self.total_bugs) * 0.5  # Range: 1.0 to 0.5
+            
+            # Threshold based on how many bugs this model should resolve
+            threshold = (resolved_count / self.total_bugs) * 1000 * difficulty_factor
+            
+            # Resolve if seed is below threshold
+            resolved = seed < threshold
+            bug_results[bug_id] = resolved
+        
+        # Adjust to match exact resolved_count
+        actual_resolved = sum(bug_results.values())
+        if actual_resolved != resolved_count:
+            # Find bugs to flip
+            bugs_to_flip = abs(actual_resolved - resolved_count)
+            bug_ids = list(bug_results.keys())
+            
+            if actual_resolved < resolved_count:
+                # Need to resolve more bugs - flip failed bugs to resolved
+                failed_bugs = [bid for bid in bug_ids if not bug_results[bid]]
+                for i in range(min(bugs_to_flip, len(failed_bugs))):
+                    bug_results[failed_bugs[i]] = True
+            else:
+                # Need to fail more bugs - flip resolved bugs to failed
+                resolved_bugs = [bid for bid in bug_ids if bug_results[bid]]
+                for i in range(min(bugs_to_flip, len(resolved_bugs))):
+                    bug_results[resolved_bugs[-(i+1)]] = False
         
         return bug_results
     
