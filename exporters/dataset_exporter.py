@@ -44,6 +44,10 @@ class DatasetExporter:
         
         self.logger.info("Exporting all datasets...")
         
+        # Clear any cached data
+        if hasattr(self, '_bug_solve_counts'):
+            del self._bug_solve_counts
+        
         # Dataset 1: Model × Bug Matrix
         path1 = self.export_model_bug_matrix(leaderboard_data, bug_data)
         exported_files['model_bug_matrix'] = path1
@@ -144,13 +148,23 @@ class DatasetExporter:
             (20, 25), (15, 20), (10, 15), (5, 10), (0, 5)
         ]
         
-        # Assign models to tiers
+        # Assign models to tiers - precompute for efficiency
         model_tiers = {}
+        tier_model_ids = {}  # Map tier_label to list of model IDs
+        
+        for tier_min, tier_max in tier_ranges:
+            tier_label = f"{tier_min}-{tier_max}"
+            tier_model_ids[tier_label] = []
+        
         for model in leaderboard_data:
             score = model['score']
             for tier_min, tier_max in tier_ranges:
+                # Use consistent boundary logic: tier_min <= score < tier_max
+                # except for top tier where we include 100
                 if tier_min <= score < tier_max or (tier_max == 100 and score == 100):
-                    model_tiers[model['model_id']] = f"{tier_min}-{tier_max}"
+                    tier_label = f"{tier_min}-{tier_max}"
+                    model_tiers[model['model_id']] = tier_label
+                    tier_model_ids[tier_label].append(model['model_id'])
                     break
         
         # Get unique bug IDs
@@ -177,14 +191,14 @@ class DatasetExporter:
             for tier_min, tier_max in tier_ranges:
                 tier_label = f"{tier_min}-{tier_max}"
                 
-                # Get models in this tier
-                tier_model_ids = [mid for mid, tier in model_tiers.items() if tier == tier_label]
-                tier_total = len(tier_model_ids)
+                # Get models in this tier (precomputed)
+                tier_models = tier_model_ids.get(tier_label, [])
+                tier_total = len(tier_models)
                 
                 # Count resolved in this tier
                 tier_resolved = 0
                 if tier_total > 0:
-                    tier_bug_rows = bug_rows[bug_rows['model_id'].isin(tier_model_ids)]
+                    tier_bug_rows = bug_rows[bug_rows['model_id'].isin(tier_models)]
                     tier_resolved = int(tier_bug_rows['resolved'].sum())
                 
                 # Calculate rate
@@ -260,21 +274,21 @@ class DatasetExporter:
             if bug_count > 0:
                 avg_rate = bracket_bugs['resolution_rate'].mean()
                 
-                # Calculate top/bottom model success rates (simplified)
-                # Top 25% of models vs bottom 25%
-                top_rate = bracket_bugs['resolution_rate'].quantile(0.75)
-                bottom_rate = bracket_bugs['resolution_rate'].quantile(0.25)
+                # Calculate resolution rate distribution within this bracket
+                # These represent the 75th and 25th percentiles of resolution rates
+                p75_rate = bracket_bugs['resolution_rate'].quantile(0.75)
+                p25_rate = bracket_bugs['resolution_rate'].quantile(0.25)
             else:
                 avg_rate = 0
-                top_rate = 0
-                bottom_rate = 0
+                p75_rate = 0
+                p25_rate = 0
             
             results.append({
                 'difficulty_bracket': bracket_name,
                 'bug_count': bug_count,
                 'avg_resolution_rate': f"{avg_rate:.1f}%",
-                'top_models_success_rate': f"{top_rate:.1f}%",
-                'bottom_models_success_rate': f"{bottom_rate:.1f}%"
+                'p75_resolution_rate': f"{p75_rate:.1f}%",
+                'p25_resolution_rate': f"{p25_rate:.1f}%"
             })
         
         # Create DataFrame
@@ -350,16 +364,22 @@ class DatasetExporter:
             # Calculate unique vs shared solves
             resolved_bugs = set(model_bugs[model_bugs['resolved'] == 1]['bug_id'])
             
+            # Precompute bug solve counts for efficiency
+            if not hasattr(self, '_bug_solve_counts'):
+                self._bug_solve_counts = {}
+                bug_resolve_data = bug_data[bug_data['resolved'] == 1].groupby('bug_id')['model_id'].apply(set)
+                for bug_id, solving_models in bug_resolve_data.items():
+                    self._bug_solve_counts[bug_id] = solving_models
+            
             unique_solves = 0
             shared_solves = 0
             
             for bug_id in resolved_bugs:
-                # Count how many other models also solved this bug
-                other_solves = bug_data[(bug_data['bug_id'] == bug_id) & 
-                                       (bug_data['model_id'] != model_id) & 
-                                       (bug_data['resolved'] == 1)]
+                # Get all models that solved this bug
+                solving_models = self._bug_solve_counts.get(bug_id, set())
                 
-                if len(other_solves) == 0:
+                # Check if only this model solved it
+                if len(solving_models) == 1:
                     unique_solves += 1
                 else:
                     shared_solves += 1
