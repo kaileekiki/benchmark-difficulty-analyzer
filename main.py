@@ -88,6 +88,12 @@ Examples:
         help='Logging level (default: INFO)'
     )
     
+    parser.add_argument(
+        '--limit',
+        type=int,
+        help='Limit number of bugs to analyze (for testing, e.g., --limit 100)'
+    )
+    
     args = parser.parse_args()
     
     # Setup logging
@@ -169,9 +175,25 @@ Examples:
         # Create bug data from crawled results
         bug_data = bug_analyzer.create_bug_data_from_crawled(leaderboard_data, bug_results)
         
+        # Apply limit if specified
+        if args.limit:
+            # Get unique bug IDs and limit them
+            all_bug_ids = sorted(bug_data['bug_id'].unique())
+            limited_bug_ids = all_bug_ids[:args.limit]
+            bug_data = bug_data[bug_data['bug_id'].isin(limited_bug_ids)]
+            logger.info(f"Limited analysis to first {args.limit} bugs (out of {len(all_bug_ids)} total)")
+        
         # Analyze resolution rates
         resolution_analysis = bug_analyzer.analyze_bug_resolution_rates()
         logger.info(f"Analyzed {len(resolution_analysis)} bugs")
+        
+        # Calculate multiple difficulty metrics
+        difficulty_config = selected_benchmark.get('difficulty', {})
+        difficulty_data = bug_analyzer.calculate_multiple_difficulties(leaderboard_data, difficulty_config)
+        logger.info(f"Calculated multiple difficulty metrics for {len(difficulty_data)} bugs")
+        
+        # Save difficulty data
+        bug_analyzer.save_analysis(difficulty_data, 'bug_difficulty_metrics')
         
         # Get difficulty distribution
         difficulty_dist = bug_analyzer.get_difficulty_distribution()
@@ -296,7 +318,7 @@ Examples:
         logger.info("="*70)
         
         exporter = DatasetExporter()
-        exported_files = exporter.export_all_datasets(leaderboard_data, bug_data)
+        exported_files = exporter.export_all_datasets(leaderboard_data, bug_data, difficulty_data)
         
         logger.info("\nExported datasets:")
         for dataset_name, file_path in exported_files.items():

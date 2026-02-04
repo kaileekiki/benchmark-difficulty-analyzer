@@ -10,6 +10,9 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
+from difficulty.metrics import DifficultyMetrics
+from data.loaders import SWEBenchVerifiedLoader
+
 
 class BugResolverAnalyzer:
     """
@@ -202,6 +205,139 @@ class BugResolverAnalyzer:
         
         self.logger.info(f"Difficulty distribution: {distribution}")
         return distribution
+    
+    def calculate_multiple_difficulties(self, leaderboard_data: List[Dict], 
+                                       difficulty_config: Optional[Dict] = None) -> pd.DataFrame:
+        """
+        Calculate multiple difficulty metrics for each bug.
+        
+        Args:
+            leaderboard_data: List of model performance dictionaries for tier calculation
+            difficulty_config: Configuration dictionary with weights
+            
+        Returns:
+            DataFrame with bug_id and multiple difficulty columns
+        """
+        if self.bug_data is None:
+            raise ValueError("Bug data not loaded. Call create_bug_data_from_crawled() first.")
+        
+        self.logger.info("Calculating multiple difficulty metrics...")
+        
+        # Get basic resolution rates
+        resolution_data = self.analyze_bug_resolution_rates()
+        
+        # Load time-based difficulty from HuggingFace
+        try:
+            loader = SWEBenchVerifiedLoader()
+            time_difficulties = loader.get_all_difficulties()
+            self.logger.info(f"Loaded time difficulties for {len(time_difficulties)} bugs")
+        except Exception as e:
+            self.logger.warning(f"Could not load time difficulties: {e}")
+            time_difficulties = {}
+        
+        # Calculate tier-based difficulties
+        tier_difficulties = self._calculate_tier_difficulties(leaderboard_data)
+        
+        # Get weights from config or use defaults
+        if difficulty_config:
+            weights = difficulty_config.get('weights', {'success_rate': 0.4, 'time': 0.6})
+        else:
+            weights = {'success_rate': 0.4, 'time': 0.6}
+        
+        # Calculate all difficulty metrics
+        results = []
+        for _, row in resolution_data.iterrows():
+            bug_id = row['bug_id']
+            success_rate = row['resolution_rate']
+            
+            # 1. Success rate-based difficulty
+            diff_success = DifficultyMetrics.from_model_success_rate(success_rate)
+            
+            # 2. Time-based difficulty
+            time_str = time_difficulties.get(bug_id)
+            diff_time = DifficultyMetrics.from_time_difficulty(time_str) if time_str else 0.5
+            
+            # 3. Tier-based difficulty
+            tier_results = tier_difficulties.get(bug_id, {})
+            diff_tier = DifficultyMetrics.from_model_tiers(tier_results) if tier_results else 0.5
+            
+            # 4. Combined difficulty
+            diff_combined = DifficultyMetrics.combined(
+                success_rate, 
+                diff_time, 
+                diff_tier,
+                weights
+            )
+            
+            results.append({
+                'bug_id': bug_id,
+                'resolution_rate': success_rate,
+                'difficulty_success_rate': diff_success,
+                'difficulty_time': diff_time,
+                'difficulty_tier': diff_tier,
+                'difficulty_combined': diff_combined,
+                'time_difficulty_str': time_str if time_str else 'N/A'
+            })
+        
+        df = pd.DataFrame(results)
+        self.logger.info(f"Calculated {len(df)} bug difficulty metrics")
+        
+        return df
+    
+    def _calculate_tier_difficulties(self, leaderboard_data: List[Dict]) -> Dict[str, Dict[str, float]]:
+        """
+        Calculate tier-based resolution rates for each bug.
+        
+        Args:
+            leaderboard_data: List of model performance dictionaries
+            
+        Returns:
+            Dictionary mapping bug_id to tier results
+        """
+        if self.bug_data is None:
+            return {}
+        
+        # Define tier ranges
+        tier_ranges = [
+            (95, 100), (90, 95), (85, 90), (80, 85), (75, 80),
+            (70, 75), (65, 70), (60, 65), (55, 60), (50, 55),
+            (45, 50), (40, 45), (35, 40), (30, 35), (25, 30),
+            (20, 25), (15, 20), (10, 15), (5, 10), (0, 5)
+        ]
+        
+        # Assign models to tiers
+        model_tiers = {}
+        for model in leaderboard_data:
+            score = model['score']
+            for tier_min, tier_max in tier_ranges:
+                if tier_min <= score < tier_max or (tier_max == 100 and score == 100):
+                    tier_label = f"{tier_min}-{tier_max}"
+                    model_tiers[model['model_id']] = tier_label
+                    break
+        
+        # Calculate resolution rates per tier for each bug
+        bug_tier_results = {}
+        bug_ids = self.bug_data['bug_id'].unique()
+        
+        for bug_id in bug_ids:
+            bug_rows = self.bug_data[self.bug_data['bug_id'] == bug_id]
+            tier_results = {}
+            
+            for tier_min, tier_max in tier_ranges:
+                tier_label = f"{tier_min}-{tier_max}"
+                
+                # Get models in this tier
+                tier_model_ids = [mid for mid, tier in model_tiers.items() if tier == tier_label]
+                
+                if tier_model_ids:
+                    tier_bug_rows = bug_rows[bug_rows['model_id'].isin(tier_model_ids)]
+                    if len(tier_bug_rows) > 0:
+                        tier_rate = tier_bug_rows['resolved'].sum() / len(tier_bug_rows)
+                        tier_results[tier_label] = tier_rate
+            
+            bug_tier_results[bug_id] = tier_results
+        
+        return bug_tier_results
 
     def save_analysis(self, analysis: pd.DataFrame, filename_prefix: str):
         """
