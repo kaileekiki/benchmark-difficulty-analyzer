@@ -29,13 +29,15 @@ class DatasetExporter:
         os.makedirs(data_dir, exist_ok=True)
     
     def export_all_datasets(self, leaderboard_data: List[Dict[str, Any]], 
-                           bug_data: pd.DataFrame) -> Dict[str, str]:
+                           bug_data: pd.DataFrame,
+                           difficulty_data: Optional[pd.DataFrame] = None) -> Dict[str, str]:
         """
         Export all required datasets.
         
         Args:
             leaderboard_data: List of model performance dictionaries
             bug_data: DataFrame with bug resolution data
+            difficulty_data: Optional DataFrame with multiple difficulty metrics
             
         Returns:
             Dictionary mapping dataset names to file paths
@@ -48,8 +50,8 @@ class DatasetExporter:
         if hasattr(self, '_bug_solve_counts'):
             del self._bug_solve_counts
         
-        # Dataset 1: Model × Bug Matrix
-        path1 = self.export_model_bug_matrix(leaderboard_data, bug_data)
+        # Dataset 1: Model × Bug Matrix (with difficulty columns)
+        path1 = self.export_model_bug_matrix(leaderboard_data, bug_data, difficulty_data)
         exported_files['model_bug_matrix'] = path1
         
         # Dataset 2: Bug × Tier Resolution Rates
@@ -73,13 +75,15 @@ class DatasetExporter:
         return exported_files
     
     def export_model_bug_matrix(self, leaderboard_data: List[Dict[str, Any]], 
-                                bug_data: pd.DataFrame) -> str:
+                                bug_data: pd.DataFrame,
+                                difficulty_data: Optional[pd.DataFrame] = None) -> str:
         """
-        Export Dataset 1: Model × Bug Matrix.
+        Export Dataset 1: Model × Bug Matrix (with difficulty columns).
         
         Args:
             leaderboard_data: List of model performance dictionaries
             bug_data: DataFrame with bug resolution data
+            difficulty_data: Optional DataFrame with multiple difficulty metrics
             
         Returns:
             Path to exported file
@@ -117,12 +121,56 @@ class DatasetExporter:
         # Create DataFrame
         df = pd.DataFrame(matrix_data)
         
+        # Add difficulty columns if available
+        if difficulty_data is not None:
+            # Create a row with difficulty metrics
+            diff_row = {'model_name': 'difficulty_success_rate'}
+            for bug_id in bug_ids:
+                bug_diff = difficulty_data[difficulty_data['bug_id'] == bug_id]
+                if not bug_diff.empty:
+                    diff_row[bug_id] = f"{bug_diff.iloc[0]['difficulty_success_rate']:.3f}"
+                else:
+                    diff_row[bug_id] = 'N/A'
+            df = pd.concat([df, pd.DataFrame([diff_row])], ignore_index=True)
+            
+            # Add time difficulty
+            diff_row = {'model_name': 'difficulty_time'}
+            for bug_id in bug_ids:
+                bug_diff = difficulty_data[difficulty_data['bug_id'] == bug_id]
+                if not bug_diff.empty:
+                    diff_row[bug_id] = f"{bug_diff.iloc[0]['difficulty_time']:.3f}"
+                else:
+                    diff_row[bug_id] = 'N/A'
+            df = pd.concat([df, pd.DataFrame([diff_row])], ignore_index=True)
+            
+            # Add tier difficulty
+            diff_row = {'model_name': 'difficulty_tier'}
+            for bug_id in bug_ids:
+                bug_diff = difficulty_data[difficulty_data['bug_id'] == bug_id]
+                if not bug_diff.empty:
+                    diff_row[bug_id] = f"{bug_diff.iloc[0]['difficulty_tier']:.3f}"
+                else:
+                    diff_row[bug_id] = 'N/A'
+            df = pd.concat([df, pd.DataFrame([diff_row])], ignore_index=True)
+            
+            # Add combined difficulty
+            diff_row = {'model_name': 'difficulty_combined'}
+            for bug_id in bug_ids:
+                bug_diff = difficulty_data[difficulty_data['bug_id'] == bug_id]
+                if not bug_diff.empty:
+                    diff_row[bug_id] = f"{bug_diff.iloc[0]['difficulty_combined']:.3f}"
+                else:
+                    diff_row[bug_id] = 'N/A'
+            df = pd.concat([df, pd.DataFrame([diff_row])], ignore_index=True)
+        
         # Save to CSV
         output_path = os.path.join(self.data_dir, 'model_bug_matrix.csv')
         df.to_csv(output_path, index=False)
         
         self.logger.info(f"  Model × Bug Matrix saved to {output_path}")
         self.logger.info(f"  Shape: {len(sorted_models)} models × {len(bug_ids)} bugs")
+        if difficulty_data is not None:
+            self.logger.info(f"  Added 4 difficulty metric rows")
         
         return output_path
     

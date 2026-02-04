@@ -5,6 +5,16 @@ benchmarks:
     leaderboard_url: "https://www.swebench.com/verified.html"
     total_bugs: 500
     api_endpoint: null
+    difficulty:
+      methods:
+        - success_rate
+        - time
+        - tier_weighted
+        - combined
+      primary: combined
+      weights:
+        success_rate: 0.4
+        time: 0.6
     
   swe_bench_lite:
     name: "SWE-bench Lite"
